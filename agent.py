@@ -51,6 +51,7 @@ class Agent:
         self.M = self.env.mailbox
         print(self.M.mail())
         self.count_entregas = 0
+        self.conta_caminho = 0
 
         self.G = self.env.topo_graph
         print(self.G.path((self.M.mail()[0][1], self.M.mail()[0][2]), self.initial_pos))
@@ -62,11 +63,13 @@ class Agent:
             self.path = self.G.path(self.proxima_entrega, self.posicao_atual)
             self.calcula_caminho = False
         else:
+            self.M.deliver(0)
             self.count_entregas += 1
             self.calcula_caminho = True
 
         self.images = []
-        self.label = []
+        self.vira = [0, 1, 2]
+        self.labels = []
 
     def get_pwm_control(self, v: float, w: float)-> (float, float):
         ''' Takes velocity v and angle w and returns left and right power to motors.'''
@@ -89,82 +92,143 @@ class Agent:
         if self.calcula_caminho:
             self.preprocess()
             self.calcula_caminho = False
+            self.conta_caminho = 0
 
-        if self.proxima_entrega == self.posicao_atual:
-            self.count_entregas += 1
-            self.calcula_caminho = True
-
-        if self.count_entregas > len(self.M.mail()):
-            print('Patolandia salva! Safezada!')
-            quit()
-
-        for i in self.path:
-
+        if len(self.path) > 0:
+            destino = self.path[self.conta_caminho]
             posicao_auxiliar = self.env.get_position()
+            angulo_auxiliar = self.env.cur_angle*180/np.pi
+            print(posicao_auxiliar)
+            print(destino)
 
-            while(abs(i[0]-posicao_auxiliar[0]) > 0.2 or abs(i[1]-posicao_auxiliar[1]) > 0.2):
-                
-                velocity = 0
-                rotation = 0
-                
-                posicao_auxiliar = self.env.get_position()
-                angulo_auxiliar = self.env.cur_angle
-
-                if (i[0]-posicao_auxiliar[0]) > 0:
-                    while(abs(angulo_auxiliar+180) > 0.2):
-                        print("aaaaaa")
-                        velocity = 0
-                        rotation = -10
-                        pwm_left, pwm_right = self.get_pwm_control(velocity, rotation)
-                        self.env.step(pwm_left, pwm_right)
-                        angulo_auxiliar = self.env.cur_angle
-
-                elif (i[0]-posicao_auxiliar[0]) < 0:
-                    while(abs(angulo_auxiliar) > 0.2):
-                        print("bbbbb")
-                        velocity = 0
-                        rotation = -10
-                        pwm_left, pwm_right = self.get_pwm_control(velocity, rotation)
-                        self.env.step(pwm_left, pwm_right)
-                        angulo_auxiliar = self.env.cur_angle
-                        print(angulo_auxiliar)
-                
-
-                elif (i[1]-posicao_auxiliar[1]) > 0:
-                    while(abs(angulo_auxiliar+90) > 0.2):
-                        print("ccccc")
-                        velocity = 0
-                        rotation = -10
-                        pwm_left, pwm_right = self.get_pwm_control(velocity, rotation)
-                        self.env.step(pwm_left, pwm_right)
-                        angulo_auxiliar = self.env.cur_angle
-
-                elif (i[1]-posicao_auxiliar[1]) < 0:
-                    while(abs(angulo_auxiliar-90) > 0.2):
-                        print("ddddd")
-                        velocity = 0
-                        rotation = -10
-                        pwm_left, pwm_right = self.get_pwm_control(velocity, rotation)
-                        self.env.step(pwm_left, pwm_right)
-                        angulo_auxiliar = self.env.cur_angle
-
-                quit()
-
-                velocity = 0
-                rotation = 0
-
-                if self.key_handler[key.W]:
-                    velocity += 0.5
-                if self.key_handler[key.A]:
-                    rotation += 1.5
-                if self.key_handler[key.S]:
-                    velocity -= 0.5
-                if self.key_handler[key.D]:
-                    rotation -= 1.5
-                if self.key_handler[key.E]:
-                    success = self.M.deliver(0)
-                    print(success)
+            if self.conta_caminho == len(self.path) - 1:
+                if abs(destino[0]-posicao_auxiliar[0]) > 0.13 or abs(destino[1]-posicao_auxiliar[1]) > 0.13:
                     
+                    if abs(destino[0]-posicao_auxiliar[0]) > 0.13:
+                        if (destino[0]-posicao_auxiliar[0]) > 0:
+                            if(abs(angulo_auxiliar) > 3):
+                                if (angulo_auxiliar > 0):
+                                    print ("Direita!")
+                                else:
+                                    print('Esquerda!')
+                            else:
+                                print('ta ok!')
 
-                pwm_left, pwm_right = self.get_pwm_control(velocity, rotation)
-                self.env.step(pwm_left, pwm_right)
+                        elif (destino[0]-posicao_auxiliar[0]) < 0:
+                            if(abs(angulo_auxiliar) < 177):
+                                if (angulo_auxiliar > 0):
+                                    print ("Esquerda!")
+                                else:
+                                    print('Direita!')
+                            else:
+                                print('ta ok!')
+
+                    else:
+                        if (destino[1]-posicao_auxiliar[1]) > 0:
+                            if(abs(angulo_auxiliar+90) > 3):
+                                if (abs(angulo_auxiliar) < 90):
+                                    print ("Direita!")
+                                else:
+                                    print('Esquerda!')
+                            else:
+                                print('ta ok!')
+
+                        elif (destino[1]-posicao_auxiliar[1]) < 0:
+                            if(abs(angulo_auxiliar-90) > 3):
+                                if (abs(angulo_auxiliar) < 90):
+                                    print ("Esquerda!")
+                                else:
+                                    print('Direita!')
+                            else:
+                                print('ta ok!')
+
+                else:
+                    print("cheguei no no final!")
+
+                    self.M.deliver(self.count_entregas)
+                    self.calcula_caminho = True
+
+                    self.count_entregas += 1
+                    if self.count_entregas >= len(self.M.mail()):
+                        #MUDAR ESSE PEDAÇO DE CÓDIGO! NÃO DA PRA O MENINO RAPAZ TERMINAR DO NADA!
+                        print('Patolandia salva! Safezada!')
+                        return
+
+            else:
+                if abs(destino[0]-posicao_auxiliar[0]) > 0.3 or abs(destino[1]-posicao_auxiliar[1]) > 0.3:
+                    
+                    if abs(destino[0]-posicao_auxiliar[0]) > 0.3:
+                        if (destino[0]-posicao_auxiliar[0]) > 0:
+                            if(abs(angulo_auxiliar) > 3):
+                                if (angulo_auxiliar > 0):
+                                    print ("Direita!")
+                                    self.vira.append(1)
+                                else:
+                                    print('Esquerda!')
+                                    self.vira.append(2)
+                            else:
+                                print('ta ok!')
+                                self.vira.append(0)
+
+                        elif (destino[0]-posicao_auxiliar[0]) < 0:
+                            if(abs(angulo_auxiliar) < 177):
+                                if (angulo_auxiliar > 0):
+                                    print ("Esquerda!")
+                                    self.vira.append(2)
+                                else:
+                                    print('Direita!')
+                                    self.vira.append(1)
+                            else:
+                                print('ta ok!')
+                                self.vira.append(0)
+
+                    else:
+                        if (destino[1]-posicao_auxiliar[1]) > 0:
+                            if(abs(angulo_auxiliar+90) > 3):
+                                if (abs(angulo_auxiliar) < 90):
+                                    print ("Direita!")
+                                    self.vira.append(1)
+                                else:
+                                    print('Esquerda!')
+                                    self.vira.append(2)
+                            else:
+                                print('ta ok!')
+                                self.vira.append(0)
+
+                        elif (destino[1]-posicao_auxiliar[1]) < 0:
+                            if(abs(angulo_auxiliar-90) > 3):
+                                if (abs(angulo_auxiliar) < 90):
+                                    print ("Esquerda!")
+                                    self.vira.append(2)
+                                else:
+                                    print('Direita!')
+                                    self.vira.append(1)
+                            else:
+                                print('ta ok!')
+                                self.vira.append(0)
+
+                else:
+                    print("cheguei num no")
+                    self.conta_caminho += 1
+        
+        velocity = 0
+        rotation = 0
+
+        if self.key_handler[key.W]:
+            velocity += 0.5
+        if self.key_handler[key.A]:
+            rotation += 1.5
+        if self.key_handler[key.S]:
+            velocity -= 0.5
+        if self.key_handler[key.D]:
+            rotation -= 1.5
+        if self.key_handler[key.E]:
+            success = self.M.deliver(0)
+            print(success)
+            
+
+        pwm_left, pwm_right = self.get_pwm_control(velocity, rotation)
+        self.env.step(pwm_left, pwm_right)
+
+        self.images.append(cv2.resize(self.env.front(), (80, 60)))
+        self.labels.append((velocity, rotation))
